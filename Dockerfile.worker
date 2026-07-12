@@ -1,0 +1,42 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies (including Blender for CPU rendering)
+RUN apt-get update && apt-get install -y \
+    blender \
+    postgresql-client \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Note: Blender built with CPU rendering (no CUDA/GPU drivers needed)
+# Future: To enable CUDA, inherit from nvidia/cuda and install nvidia-python bindings
+
+# Install pip dependencies directly
+RUN pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn==0.24.0 \
+    sqlalchemy==2.0.23 \
+    alembic==1.13.0 \
+    psycopg2-binary==2.9.9 \
+    celery==5.3.4 \
+    redis==5.0.1 \
+    boto3==1.34.3 \
+    openai==1.6.1 \
+    pydantic==2.5.2 \
+    pydantic-settings==2.1.0 \
+    python-jose==3.3.0 \
+    passlib==1.7.4 \
+    httpx==0.25.1 \
+    email-validator==2.1.0
+
+# Copy app code
+COPY . .
+
+# Create output directory for renders
+RUN mkdir -p /render_output
+
+EXPOSE 5555
+
+# Run Celery worker
+CMD ["celery", "-A", "backend.celery_app", "worker", "--loglevel=info", "--concurrency=2"]

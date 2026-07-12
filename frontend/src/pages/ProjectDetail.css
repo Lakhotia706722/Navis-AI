@@ -1,0 +1,314 @@
+.project-detail {
+  animation: fadeIn 0.3s ease;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.back-button {
+  background: #e0e7ff;
+  color: #667eea;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.back-button:hover {
+  background: #c7d2f9;
+  transform: translateX(-2px);
+}
+
+.detail-header h1 {
+  margin: 0;
+  flex: 1;
+  color: #333;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.project-info {
+  grid-column: 1;
+}
+
+.project-info h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.prompt-text {
+  color: #666;
+  line-height: 1.6;
+  font-style: italic;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  border-left: 3px solid #667eea;
+  margin: 1rem 0;
+}
+
+.project-date {
+  color: #999;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.render-controls h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.render-controls select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.render-controls select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.info-text {
+  color: #f59e0b;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: #fffbeb;
+  border-radius: 4px;
+  border-left: 3px solid #f59e0b;
+}
+
+/* Render Status */
+.render-status {
+  margin-bottom: 2rem;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.status-badge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.progress-section {
+  margin: 1.5rem 0;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.progress-percent {
+  color: #667eea;
+  font-weight: 700;
+}
+
+.render-info {
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0.75rem 0;
+}
+
+.error-box {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-left: 3px solid #dc2626;
+  color: #991b1b;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.error-box strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #dc2626;
+}
+
+.success-box {
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-left: 3px solid #16a34a;
+  color: #166534;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.success-box p {
+  margin: 0 0 0.5rem 0;
+  font-weight: 500;
+}
+
+.video-path {
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.5rem;
+  border-radius: 3px;
+  word-break: break-all;
+  color: #166534 !important;
+}
+
+/* Scenes */
+.scenes-section {
+  margin-bottom: 2rem;
+}
+
+.scenes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.scene-item {
+  display: grid;
+  grid-template-columns: 100px 1fr 80px;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.scene-number {
+  font-weight: 600;
+  color: #667eea;
+}
+
+.scene-name {
+  color: #555;
+}
+
+.scene-duration {
+  color: #999;
+  text-align: right;
+  font-size: 0.9rem;
+}
+
+/* Render History */
+.render-history {
+  margin-bottom: 2rem;
+}
+
+.renders-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.timeline-item:hover {
+  background: #f3f4f6;
+  border-left-color: #667eea;
+}
+
+.timeline-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.timeline-content {
+  flex: 1;
+}
+
+.timeline-status {
+  margin: 0;
+  font-weight: 500;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.timeline-date {
+  margin: 0.25rem 0 0 0;
+  color: #999;
+  font-size: 0.85rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-info {
+    grid-column: 1;
+  }
+
+  .scene-item {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .scene-number,
+  .scene-name,
+  .scene-duration {
+    display: block;
+  }
+
+  .scene-duration {
+    text-align: left;
+    color: #667eea;
+  }
+}

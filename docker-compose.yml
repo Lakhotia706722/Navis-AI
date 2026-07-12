@@ -1,0 +1,119 @@
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: maritime-postgres
+    environment:
+      POSTGRES_USER: maritime_user
+      POSTGRES_PASSWORD: maritime_pass
+      POSTGRES_DB: maritime_studio
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maritime_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery broker
+  redis:
+    image: redis:7-alpine
+    container_name: maritime-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO object storage (S3-compatible)
+  minio:
+    image: minio/minio:latest
+    container_name: maritime-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/minio_data
+    command: server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: maritime-api
+    environment:
+      DATABASE_URL: postgresql://maritime_user:maritime_pass@postgres:5432/maritime_studio
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      BLENDER_RENDER_BACKEND: CPU
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./ai:/app/ai
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Celery worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: maritime-worker
+    environment:
+      DATABASE_URL: postgresql://maritime_user:maritime_pass@postgres:5432/maritime_studio
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      BLENDER_RENDER_BACKEND: CPU
+      BLENDER_EXECUTABLE: /usr/bin/blender
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app/backend
+      - ./ai:/app/ai
+      - ./blender:/app/blender
+      - render_output:/render_output
+    command: celery -A backend.celery_app worker --loglevel=info --concurrency=2
+
+  # Frontend dev server (optional for compose)
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: maritime-frontend
+  #   ports:
+  #     - "5173:5173"
+  #   volumes:
+  #     - ./frontend/src:/app/src
+  #   command: npm run dev
+
+volumes:
+  postgres_data:
+  minio_data:
+  render_output:
