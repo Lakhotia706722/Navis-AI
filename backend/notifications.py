@@ -16,6 +16,7 @@ class NotificationType(str, Enum):
     RENDER_COMPLETED = "render_completed"
     RENDER_FAILED = "render_failed"
     COST_THRESHOLD_EXCEEDED = "cost_threshold_exceeded"
+    WORKSPACE_INVITE = "workspace_invite"  # Phase 11
 
 
 class NotificationChannel(str, Enum):

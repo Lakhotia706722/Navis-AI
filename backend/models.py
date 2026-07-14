@@ -13,19 +13,46 @@ from sqlalchemy import (
     Text,
     Float,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
 from backend.database import Base
 
 
-class RoleEnum(str, Enum):
-    """User roles (MVP: owner only, extensible for teams later)."""
+class WorkspaceRoleEnum(str, Enum):
+    """Roles within a workspace. See docs/rbac.md for permission matrix."""
 
     OWNER = "owner"
-    # ADMIN = "admin"  # Future
-    # EDITOR = "editor"  # Future
-    # VIEWER = "viewer"  # Future
+    ADMIN = "admin"
+    MEMBER = "member"
+    VIEWER = "viewer"
+
+    # Numeric rank — higher = more permissions (used in middleware comparisons)
+    @property
+    def rank(self) -> int:
+        return {"owner": 4, "admin": 3, "member": 2, "viewer": 1}[self.value]
+
+    def __ge__(self, other: "WorkspaceRoleEnum") -> bool:
+        return self.rank >= other.rank
+
+    def __gt__(self, other: "WorkspaceRoleEnum") -> bool:
+        return self.rank > other.rank
+
+
+class InviteStatusEnum(str, Enum):
+    """Lifecycle of a workspace invite."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
+class RoleEnum(str, Enum):
+    """Legacy single-user role — kept for backward compat; superseded by WorkspaceRoleEnum."""
+
+    OWNER = "owner"
 
 
 class RenderJobStatusEnum(str, Enum):
@@ -55,9 +82,79 @@ class User(Base):
 
     # Relationships
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
+    workspace_memberships = relationship("WorkspaceMember", foreign_keys="WorkspaceMember.user_id", back_populates="user")
 
     def __repr__(self):
         return f"<User {self.email}>"
+
+
+class Workspace(Base):
+    """A team workspace that owns a collection of projects."""
+
+    __tablename__ = "workspaces"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    plan_tier = Column(String(50), nullable=False, default="free",
+                       comment="Billing tier stub — enforced in Phase 12")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    owner = relationship("User", foreign_keys=[owner_id])
+    members = relationship("WorkspaceMember", back_populates="workspace", cascade="all, delete-orphan")
+    invites = relationship("WorkspaceInvite", back_populates="workspace", cascade="all, delete-orphan")
+    projects = relationship("Project", back_populates="workspace")
+
+    def __repr__(self):
+        return f"<Workspace {self.id} — {self.name}>"
+
+
+class WorkspaceMember(Base):
+    """Membership of a user in a workspace with an assigned role."""
+
+    __tablename__ = "workspace_members"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "user_id", name="uq_workspace_member"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(SQLEnum(WorkspaceRoleEnum), nullable=False)
+    invited_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    joined_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    workspace = relationship("Workspace", back_populates="members")
+    user = relationship("User", foreign_keys=[user_id], back_populates="workspace_memberships")
+    inviter = relationship("User", foreign_keys=[invited_by])
+
+    def __repr__(self):
+        return f"<WorkspaceMember workspace={self.workspace_id} user={self.user_id} role={self.role}>"
+
+
+class WorkspaceInvite(Base):
+    """Pending invite to join a workspace."""
+
+    __tablename__ = "workspace_invites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(SQLEnum(WorkspaceRoleEnum), nullable=False)
+    token = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    status = Column(SQLEnum(InviteStatusEnum), nullable=False, default=InviteStatusEnum.PENDING)
+    invited_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    workspace = relationship("Workspace", back_populates="invites")
+    inviter = relationship("User", foreign_keys=[invited_by])
+
+    def __repr__(self):
+        return f"<WorkspaceInvite {self.email} → workspace={self.workspace_id} status={self.status}>"
 
 
 class Project(Base):
@@ -67,6 +164,12 @@ class Project(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    workspace_id = Column(
+        Integer,
+        ForeignKey("workspaces.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     prompt = Column(Text, nullable=True)  # Original user prompt
@@ -81,6 +184,7 @@ class Project(Base):
 
     # Relationships
     owner = relationship("User", back_populates="projects")
+    workspace = relationship("Workspace", back_populates="projects")
     render_jobs = relationship("RenderJob", back_populates="project", cascade="all, delete-orphan")
     usage_logs = relationship("UsageLog", back_populates="project", cascade="all, delete-orphan")
 
@@ -160,12 +264,19 @@ class Asset(Base):
 
 
 class UsageLog(Base):
-    """Cost tracking: GPT tokens, TTS chars, render minutes per project."""
+    """Cost tracking: GPT tokens, TTS chars, render minutes per project/workspace."""
 
     __tablename__ = "usage_logs"
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    workspace_id = Column(
+        Integer,
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Denormalised workspace FK for fast billing aggregation in Phase 12",
+    )
     gpt_tokens = Column(Integer, default=0, nullable=False)
     tts_characters = Column(Integer, default=0, nullable=False)
     render_minutes = Column(Integer, default=0, nullable=False)

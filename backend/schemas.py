@@ -1,38 +1,31 @@
-"""Pydantic schemas for API request/response contracts."""
+"""Pydantic schemas for API request/response contracts — Phase 11."""
 from datetime import datetime
 from typing import Optional, List
 
 from pydantic import BaseModel, EmailStr
 
+from backend.models import WorkspaceRoleEnum
+
 
 # ============ Auth ============
 
-
 class UserCreate(BaseModel):
-    """Request to create a user."""
-
     email: EmailStr
     password: str
     full_name: Optional[str] = None
 
 
 class UserLogin(BaseModel):
-    """Request to login."""
-
     email: EmailStr
     password: str
 
 
 class TokenResponse(BaseModel):
-    """JWT token response."""
-
     access_token: str
     token_type: str = "bearer"
 
 
 class UserResponse(BaseModel):
-    """User info response."""
-
     id: int
     email: str
     full_name: Optional[str]
@@ -43,34 +36,94 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+# ============ Workspaces ============
+
+class WorkspaceCreate(BaseModel):
+    name: str
+
+
+class WorkspaceUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class WorkspaceResponse(BaseModel):
+    id: int
+    name: str
+    owner_id: int
+    plan_tier: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WorkspaceMemberResponse(BaseModel):
+    id: int
+    workspace_id: int
+    user_id: int
+    role: str
+    invited_by: Optional[int]
+    joined_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MemberRoleUpdate(BaseModel):
+    role: WorkspaceRoleEnum
+
+
+class WorkspaceInviteCreate(BaseModel):
+    email: EmailStr
+    role: WorkspaceRoleEnum
+
+
+class WorkspaceInviteResponse(BaseModel):
+    id: int
+    email: str
+    workspace_id: int
+    role: str
+    token: str
+    expires_at: datetime
+    status: str
+    invited_by: Optional[int]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WorkspaceUsageStats(BaseModel):
+    workspace_id: int
+    total_gpt_tokens: int = 0
+    total_tts_characters: int = 0
+    total_render_minutes: int = 0
+    total_cost_usd: float = 0.0
+    project_count: int = 0
+
+
 # ============ Projects ============
 
-
 class ProjectCreate(BaseModel):
-    """Request to create a project."""
-
     title: str
     description: Optional[str] = None
-    prompt: str  # The original user prompt
+    prompt: str
 
 
 class ProjectUpdate(BaseModel):
-    """Request to update a project."""
-
     title: Optional[str] = None
     description: Optional[str] = None
     prompt: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
-    """Project info response."""
-
     id: int
     user_id: int
+    workspace_id: int
     title: str
     description: Optional[str]
     prompt: Optional[str]
-    status: str  # RenderJobStatusEnum
+    status: str
     created_at: datetime
     updated_at: datetime
 
@@ -80,15 +133,12 @@ class ProjectResponse(BaseModel):
 
 # ============ Render Jobs ============
 
-
 class RenderJobResponse(BaseModel):
-    """Render job info response."""
-
     id: int
     project_id: int
-    status: str  # RenderJobStatusEnum
+    status: str
     progress_percent: int
-    render_mode: str  # "preview" or "full"
+    render_mode: str
     output_video_path: Optional[str]
     error_message: Optional[str]
     estimated_duration_seconds: Optional[int]
@@ -103,16 +153,13 @@ class RenderJobResponse(BaseModel):
 
 # ============ Scenes ============
 
-
 class SceneResponse(BaseModel):
-    """Scene info response."""
-
     id: int
     render_job_id: int
     scene_number: int
     name: str
     duration_seconds: float
-    scene_json: dict  # Full scene definition
+    scene_json: dict
     created_at: datetime
 
     class Config:
@@ -120,39 +167,29 @@ class SceneResponse(BaseModel):
 
 
 class RenderJobWithScenes(RenderJobResponse):
-    """Render job with scenes."""
-
     scenes: List["SceneResponse"] = []
 
 
 class ProjectWithRenders(ProjectResponse):
-    """Project with render jobs."""
-
     render_jobs: List["RenderJobResponse"] = []
 
 
-# Rebuild all models with forward references AFTER all models are defined
 RenderJobWithScenes.model_rebuild()
 ProjectWithRenders.model_rebuild()
 
 
 # ============ Assets ============
 
-
 class AssetCreate(BaseModel):
-    """Request to create/upload an asset."""
-
     name: str
     category: str
     tags: List[str] = []
-    file_format: str  # "blend", "fbx", "glb"
+    file_format: str
     version: str = "1.0"
     licensing_info: Optional[str] = None
 
 
 class AssetResponse(BaseModel):
-    """Asset info response."""
-
     id: int
     name: str
     category: str
@@ -169,25 +206,21 @@ class AssetResponse(BaseModel):
 
 
 class AssetSearchParams(BaseModel):
-    """Query params for asset search."""
-
     category: Optional[str] = None
     tags: Optional[List[str]] = None
-    search: Optional[str] = None  # Name/keyword search
+    search: Optional[str] = None
 
 
 # ============ Usage & Cost ============
 
-
 class UsageLogResponse(BaseModel):
-    """Usage log info response."""
-
     id: int
     project_id: int
-    usage_type: str  # "gpt_tokens", "tts_chars", "render_minutes"
-    quantity: int
-    cost_usd: Optional[float]
-    metadata: Optional[dict]
+    workspace_id: Optional[int]
+    gpt_tokens: int
+    tts_characters: int
+    render_minutes: int
+    cost: float
     created_at: datetime
 
     class Config:
@@ -195,8 +228,6 @@ class UsageLogResponse(BaseModel):
 
 
 class ProjectUsageStats(BaseModel):
-    """Aggregate usage stats for a project."""
-
     project_id: int
     total_gpt_tokens: int = 0
     total_tts_chars: int = 0
@@ -207,19 +238,14 @@ class ProjectUsageStats(BaseModel):
 
 # ============ Notifications ============
 
-
 class NotificationHookCreate(BaseModel):
-    """Request to create a notification hook."""
-
-    event_type: str  # "render_complete", "render_failed"
-    hook_type: str  # "webhook", "email"
-    destination: str  # URL or email
-    project_id: Optional[int] = None  # None = global
+    event_type: str
+    hook_type: str
+    destination: str
+    project_id: Optional[int] = None
 
 
 class NotificationHookResponse(BaseModel):
-    """Notification hook info response."""
-
     id: int
     project_id: Optional[int]
     event_type: str
@@ -231,11 +257,8 @@ class NotificationHookResponse(BaseModel):
         from_attributes = True
 
 
-# ============ Error Responses ============
-
+# ============ Errors ============
 
 class ErrorResponse(BaseModel):
-    """Standard error response."""
-
     detail: str
     error_code: Optional[str] = None

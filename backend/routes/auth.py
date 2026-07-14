@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import User
+from backend.models import User, Workspace, WorkspaceMember, WorkspaceRoleEnum
 from backend.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
 from backend.security import create_access_token, hash_password, verify_password
 
@@ -14,8 +14,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user."""
-    # Check if user already exists
+    """Register a new user and auto-create their personal workspace."""
     existing_user = db.query(User).filter(User.email == user_create.email).first()
     if existing_user:
         raise HTTPException(
@@ -23,13 +22,27 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
             detail="User with this email already exists",
         )
 
-    # Create user
     user = User(
         email=user_create.email,
         hashed_password=hash_password(user_create.password),
         full_name=user_create.full_name,
     )
     db.add(user)
+    db.flush()  # get user.id before workspace creation
+
+    # Auto-create a personal workspace so new users can work immediately
+    workspace_name = f"{user_create.full_name or user_create.email}'s Workspace"
+    workspace = Workspace(name=workspace_name, owner_id=user.id)
+    db.add(workspace)
+    db.flush()
+
+    member = WorkspaceMember(
+        workspace_id=workspace.id,
+        user_id=user.id,
+        role=WorkspaceRoleEnum.OWNER,
+        invited_by=None,
+    )
+    db.add(member)
     db.commit()
     db.refresh(user)
     return user

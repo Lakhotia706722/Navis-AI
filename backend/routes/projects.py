@@ -1,12 +1,16 @@
-"""Project routes (CRUD + render management)."""
-from typing import List, Optional
+"""Project routes — workspace-scoped (Phase 11)."""
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import Project, RenderJob, User
-from backend.routes.auth import get_current_user
+from backend.models import Project, RenderJob, WorkspaceRoleEnum
+from backend.permissions import (
+    WorkspaceContext,
+    get_project_workspace_context,
+    require_workspace_role,
+)
 from backend.schemas import (
     ProjectCreate,
     ProjectResponse,
@@ -18,37 +22,25 @@ from backend.schemas import (
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 
-def get_project_or_404(project_id: int, user: User, db: Session) -> Project:
-    """Helper to get project and verify ownership."""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-    if project.user_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not have access to this project",
-        )
-    return project
+# ── helpers ──────────────────────────────────────────────────────
 
+def _get_project(project_id: int, ctx: WorkspaceContext, db: Session) -> Project:
+    """Fetch project and verify it belongs to the active workspace."""
+    return get_project_workspace_context(project_id, ctx, db)
+
+
+# ── routes ───────────────────────────────────────────────────────
 
 @router.post("", response_model=ProjectResponse)
 async def create_project(
     project_create: ProjectCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    ctx: WorkspaceContext = Depends(require_workspace_role(WorkspaceRoleEnum.MEMBER)),
 ):
-    """Create a new project."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
+    """Create a new project in the active workspace. Requires member role."""
     project = Project(
-        user_id=user.id,
+        user_id=ctx.user.id,
+        workspace_id=ctx.workspace.id,
         title=project_create.title,
         description=project_create.description,
         prompt=project_create.prompt,
@@ -62,16 +54,15 @@ async def create_project(
 @router.get("", response_model=List[ProjectResponse])
 async def list_projects(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    ctx: WorkspaceContext = Depends(require_workspace_role(WorkspaceRoleEnum.VIEWER)),
 ):
-    """List all projects for the current user."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    projects = db.query(Project).filter(Project.user_id == user.id).all()
+    """List all projects in the active workspace. Requires viewer role."""
+    projects = (
+        db.query(Project)
+        .filter(Project.workspace_id == ctx.workspace.id)
+        .order_by(Project.created_at.desc())
+        .all()
+    )
     return projects
 
 
@@ -79,17 +70,10 @@ async def list_projects(
 async def get_project(
     project_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    ctx: WorkspaceContext = Depends(require_workspace_role(WorkspaceRoleEnum.VIEWER)),
 ):
-    """Get a specific project with render jobs."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    project = get_project_or_404(project_id, user, db)
-    return project
+    """Get a specific project with its render jobs. Requires viewer role."""
+    return _get_project(project_id, ctx, db)
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
@@ -97,16 +81,10 @@ async def update_project(
     project_id: int,
     project_update: ProjectUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    ctx: WorkspaceContext = Depends(require_workspace_role(WorkspaceRoleEnum.MEMBER)),
 ):
-    """Update a project."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    project = get_project_or_404(project_id, user, db)
+    """Update a project. Requires member role."""
+    project = _get_project(project_id, ctx, db)
 
     if project_update.title is not None:
         project.title = project_update.title
@@ -124,34 +102,25 @@ async def update_project(
 async def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    ctx: WorkspaceContext = Depends(require_workspace_role(WorkspaceRoleEnum.ADMIN)),
 ):
-    """Delete a project (cascades to render_jobs, scenes, usage_logs)."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    project = get_project_or_404(project_id, user, db)
+    """Delete a project. Requires admin role."""
+    project = _get_project(project_id, ctx, db)
     db.delete(project)
     db.commit()
-    return None
 
 
 @router.get("/{project_id}/renders", response_model=List[RenderJobResponse])
 async def list_render_jobs(
     project_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    ctx: WorkspaceContext = Depends(require_workspace_role(WorkspaceRoleEnum.VIEWER)),
 ):
-    """List all render jobs for a project."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    project = get_project_or_404(project_id, user, db)
-    render_jobs = db.query(RenderJob).filter(RenderJob.project_id == project_id).all()
-    return render_jobs
+    """List all render jobs for a project. Requires viewer role."""
+    _get_project(project_id, ctx, db)
+    return (
+        db.query(RenderJob)
+        .filter(RenderJob.project_id == project_id)
+        .order_by(RenderJob.created_at.desc())
+        .all()
+    )
