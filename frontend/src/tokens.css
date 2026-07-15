@@ -1,0 +1,92 @@
+/* ============================================================
+   Navis AI — Design Tokens
+   Single source of truth. Import before any component CSS.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ── Colour ──────────────────────────────────────────── */
+  --clr-depth:     #0B1829;   /* app shell background      */
+  --clr-hull:      #132238;   /* card surfaces             */
+  --clr-bulkhead:  #1E3352;   /* borders, dividers         */
+  --clr-chart:     #2D9CDB;   /* links, focus, progress    */
+  --clr-amber:     #F5A623;   /* CTA, active render        */
+  --clr-surface:   #F0F4F8;   /* text, input backgrounds   */
+
+  --clr-success:   #22C55E;
+  --clr-error:     #EF4444;
+  --clr-warning:   #F59E0B;
+  --clr-neutral:   #64748B;
+
+  /* Muted variants */
+  --clr-surface-dim:    rgba(240,244,248,.55);
+  --clr-surface-muted:  rgba(240,244,248,.35);
+  --clr-chart-dim:      rgba(45,156,219,.15);
+  --clr-amber-dim:      rgba(245,166,35,.15);
+  --clr-error-dim:      rgba(239,68,68,.12);
+  --clr-success-dim:    rgba(34,197,94,.12);
+  --clr-warning-dim:    rgba(245,158,11,.12);
+
+  /* ── Typography ──────────────────────────────────────── */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-data:    'JetBrains Mono', monospace;
+
+  --text-xs:      11px;
+  --text-sm:      13px;
+  --text-base:    15px;
+  --text-lg:      18px;
+  --text-xl:      24px;
+  --text-2xl:     36px;
+  --text-display: 48px;
+
+  --leading-tight:  1.2;
+  --leading-normal: 1.5;
+  --leading-loose:  1.75;
+
+  /* ── Spacing (8-point) ───────────────────────────────── */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Radius ──────────────────────────────────────────── */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg: 16px;
+
+  /* ── Shadow (dark-surface) ───────────────────────────── */
+  --shadow-card:  0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-raise: 0 4px 16px rgba(0,0,0,.5);
+  --shadow-inset: inset 0 1px 3px rgba(0,0,0,.3);
+
+  /* ── Transition ──────────────────────────────────────── */
+  --transition-fast:   150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow:   400ms ease;
+
+  /* ── Pipeline stage colours ──────────────────────────── */
+  --stage-queued:     #64748B;
+  --stage-planning:   #60A5FA;
+  --stage-composing:  #A78BFA;
+  --stage-rendering:  var(--clr-amber);
+  --stage-assembling: #34D399;
+  --stage-done:       var(--clr-success);
+  --stage-failed:     var(--clr-error);
+}
+
+/* Reduced motion — disable all animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

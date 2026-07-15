@@ -5,13 +5,8 @@ interface Project {
   id: number
   title: string
   prompt: string
-  created_at: string
-}
-
-interface RenderJob {
-  id: number
   status: string
-  progress_percent: number
+  created_at: string
 }
 
 interface DashboardProps {
@@ -19,136 +14,239 @@ interface DashboardProps {
   onSelectProject: (projectId: number) => void
 }
 
+// Pipeline stages in order — used for depth sounder mini strip
+const PIPELINE_STAGES = ['queued','planning','composing','rendering','assembling','done']
+
+function stageIndex(status: string): number {
+  const idx = PIPELINE_STAGES.indexOf(status)
+  return idx === -1 ? 0 : idx
+}
+
+/** Mini 6-stage depth sounder strip for project cards */
+function DepthStrip({ status }: { status: string }) {
+  const currentIdx = stageIndex(status)
+  const isFailed = status === 'failed'
+  const isDone   = status === 'done'
+
+  return (
+    <div className="project-card__depth" aria-hidden="true">
+      {PIPELINE_STAGES.slice(0, -1).map((stage, i) => {
+        const isActive = !isDone && !isFailed && i === currentIdx
+        const isFilled = isDone || i < currentIdx
+        return (
+          <div
+            key={stage}
+            className={[
+              'project-card__depth-stage',
+              isFailed ? 'failed' : '',
+              isActive ? 'active' : '',
+              isFilled ? 'filled' : '',
+            ].join(' ')}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ token, onSelectProject }) => {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showNewProject, setShowNewProject] = useState(false)
+  const [showForm, setShowForm] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newPrompt, setNewPrompt] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    fetchProjects()
-  }, [token])
+  useEffect(() => { fetchProjects() }, [token])
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/projects', {
+      const res = await fetch('http://localhost:8000/api/projects', {
         headers: { Authorization: `Bearer ${token}` },
       })
-      const data = await response.json()
+      if (!res.ok) throw new Error()
+      const data = await res.json()
       setProjects(data || [])
       setError('')
-    } catch (err) {
-      setError('Failed to load projects')
+    } catch {
+      setError('Could not load projects. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCreateProject = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
-
     try {
-      const response = await fetch('http://localhost:8000/api/projects', {
+      const res = await fetch('http://localhost:8000/api/projects', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle, prompt: newPrompt }),
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to create project')
-      }
-
+      if (!res.ok) throw new Error()
       setNewTitle('')
       setNewPrompt('')
-      setShowNewProject(false)
+      setShowForm(false)
       await fetchProjects()
-    } catch (err) {
-      setError('Failed to create project')
+    } catch {
+      setError('Failed to create project. Try again.')
     } finally {
       setSubmitting(false)
     }
   }
 
   if (loading) {
-    return (
-      <div className="dashboard">
-        <div className="spinner"></div>
-      </div>
-    )
+    return <div className="dashboard"><div className="spinner" /></div>
   }
+
+  const active  = projects.filter(p => !['done','failed'].includes(p.status)).length
+  const done    = projects.filter(p => p.status === 'done').length
+  const failed  = projects.filter(p => p.status === 'failed').length
 
   return (
     <div className="dashboard">
+      {/* Header */}
       <div className="dashboard-header">
-        <h2>My Projects</h2>
-        <button className="button" onClick={() => setShowNewProject(!showNewProject)}>
-          {showNewProject ? '✕ Cancel' : '+ New Project'}
+        <div>
+          <h1 className="dashboard-heading">Projects</h1>
+          <p className="dashboard-subheading">
+            {projects.length === 0
+              ? 'No projects yet — create your first below'
+              : `${projects.length} project${projects.length !== 1 ? 's' : ''} in this workspace`}
+          </p>
+        </div>
+        <button
+          className="button"
+          onClick={() => setShowForm(v => !v)}
+          aria-expanded={showForm}
+        >
+          {showForm ? '✕ Cancel' : '+ New Project'}
         </button>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {/* Stats bar — only shown when there's data */}
+      {projects.length > 0 && (
+        <div className="dashboard-stats">
+          <div className="stat-chip">
+            <span className="stat-chip__value">{projects.length}</span>
+            <span className="stat-chip__label">Total</span>
+          </div>
+          {active > 0 && (
+            <div className="stat-chip">
+              <span className="stat-chip__value" style={{ color: 'var(--clr-amber)' }}>{active}</span>
+              <span className="stat-chip__label">Active</span>
+            </div>
+          )}
+          {done > 0 && (
+            <div className="stat-chip">
+              <span className="stat-chip__value" style={{ color: 'var(--clr-success)' }}>{done}</span>
+              <span className="stat-chip__label">Done</span>
+            </div>
+          )}
+          {failed > 0 && (
+            <div className="stat-chip">
+              <span className="stat-chip__value" style={{ color: 'var(--clr-error)' }}>{failed}</span>
+              <span className="stat-chip__label">Failed</span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {showNewProject && (
+      {/* Error */}
+      {error && <div className="error-message" role="alert">{error}</div>}
+
+      {/* New project form */}
+      {showForm && (
         <div className="card new-project-form">
-          <h3>Create New Project</h3>
-          <form onSubmit={handleCreateProject}>
+          <h2 className="new-project-form__title">New Project</h2>
+          <form onSubmit={handleCreate}>
             <div className="input-group">
-              <label htmlFor="title">Project Title</label>
+              <label htmlFor="proj-title">Project title</label>
               <input
-                id="title"
+                id="proj-title"
                 type="text"
                 value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                onChange={e => setNewTitle(e.target.value)}
                 placeholder="e.g., Lifeboat Safety Training"
                 required
                 disabled={submitting}
               />
             </div>
-
             <div className="input-group">
-              <label htmlFor="prompt">Video Prompt</label>
+              <label htmlFor="proj-prompt">Video prompt</label>
               <textarea
-                id="prompt"
+                id="proj-prompt"
                 value={newPrompt}
-                onChange={(e) => setNewPrompt(e.target.value)}
-                placeholder="Describe what you want in the video..."
+                onChange={e => setNewPrompt(e.target.value)}
+                placeholder="Describe the training video — equipment, procedure, environment, tone…"
                 required
                 disabled={submitting}
+                rows={4}
               />
             </div>
-
-            <button type="submit" className="button" disabled={submitting}>
-              {submitting ? 'Creating...' : 'Create Project'}
-            </button>
+            <div className="form-row">
+              <button type="submit" className="button" disabled={submitting}>
+                {submitting ? 'Creating…' : 'Create Project'}
+              </button>
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => setShowForm(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+            </div>
           </form>
         </div>
       )}
 
+      {/* Projects grid */}
       <div className="projects-grid">
         {projects.length === 0 ? (
-          <div className="empty-state">
-            <p>📹 No projects yet</p>
-            <p className="empty-help">Create your first project to get started</p>
+          <div className="projects-empty">
+            <div className="empty-state">
+              <div className="empty-state__icon">⚓</div>
+              <p className="empty-state__title">No projects yet</p>
+              <p className="empty-state__body">
+                Create a project, write a training brief, and Navis AI will generate a full maritime video —
+                script, voice-over, scenes, and all.
+              </p>
+              <button className="button" onClick={() => setShowForm(true)}>
+                + New Project
+              </button>
+            </div>
           </div>
         ) : (
-          projects.map((project) => (
-            <div key={project.id} className="project-card card" onClick={() => onSelectProject(project.id)}>
-              <h3>{project.title}</h3>
-              <p className="project-prompt">{project.prompt}</p>
-              <p className="project-date">Created: {new Date(project.created_at).toLocaleDateString()}</p>
-              <button className="button secondary" onClick={(e) => {
-                e.stopPropagation()
-                onSelectProject(project.id)
-              }}>
-                View Project →
-              </button>
+          projects.map(project => (
+            <div
+              key={project.id}
+              className="project-card card"
+              onClick={() => onSelectProject(project.id)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open project: ${project.title}`}
+              onKeyDown={e => e.key === 'Enter' && onSelectProject(project.id)}
+            >
+              <DepthStrip status={project.status} />
+
+              <div className="project-card__body">
+                <h3 className="project-card__title">{project.title}</h3>
+                <p className="project-card__prompt">{project.prompt}</p>
+                <div className="project-card__meta">
+                  <span className="project-card__date">
+                    {new Date(project.created_at).toLocaleDateString('en-GB', {
+                      day: 'numeric', month: 'short', year: 'numeric',
+                    })}
+                  </span>
+                  <span className={`status-badge ${project.status}`}>
+                    {project.status}
+                  </span>
+                  <span className="project-card__arrow" aria-hidden="true">→</span>
+                </div>
+              </div>
             </div>
           ))
         )}

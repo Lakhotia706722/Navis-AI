@@ -1,70 +1,58 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import './index.css'
-import { Login } from './pages/Login'
-import { Dashboard } from './pages/Dashboard'
+import { Login }         from './pages/Login'
+import { Dashboard }     from './pages/Dashboard'
 import { ProjectDetail } from './pages/ProjectDetail'
-import { AssetLibrary } from './pages/AssetLibrary'
+import { AssetLibrary }  from './pages/AssetLibrary'
 
 type Page = 'login' | 'dashboard' | 'project' | 'assets'
 
 interface User {
   id: number
   email: string
+  full_name?: string
 }
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
-  const [user, setUser] = useState<User | null>(null)
-  const [currentPage, setCurrentPage] = useState<Page>('login')
+  const [token,             setToken]             = useState<string | null>(localStorage.getItem('token'))
+  const [user,              setUser]              = useState<User | null>(null)
+  const [currentPage,       setCurrentPage]       = useState<Page>('login')
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
 
-  // Verify token on mount
   useEffect(() => {
-    if (token) {
-      verifyToken()
-    }
+    if (token) verifyToken()
   }, [token])
 
   const verifyToken = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/me', {
+      const res = await fetch('http://localhost:8000/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (response.ok) {
-        const data = await response.json()
+      if (res.ok) {
+        const data = await res.json()
         setUser(data)
         setCurrentPage('dashboard')
       } else {
-        setToken(null)
-        localStorage.removeItem('token')
+        clearSession()
       }
-    } catch (error) {
-      console.error('Token verification failed:', error)
-      setToken(null)
-      localStorage.removeItem('token')
+    } catch {
+      clearSession()
     }
   }
 
-  const handleLogin = (newToken: string) => {
-    setToken(newToken)
-    localStorage.setItem('token', newToken)
-  }
-
-  const handleLogout = () => {
+  const clearSession = () => {
     setToken(null)
     localStorage.removeItem('token')
     setUser(null)
     setCurrentPage('login')
   }
 
-  const handleSelectProject = (projectId: number) => {
-    setSelectedProjectId(projectId)
-    setCurrentPage('project')
-  }
+  const handleLogin  = (t: string) => { setToken(t); localStorage.setItem('token', t) }
+  const handleLogout = () => clearSession()
 
-  const handleBackToDashboard = () => {
-    setCurrentPage('dashboard')
-    setSelectedProjectId(null)
+  const handleSelectProject = (id: number) => {
+    setSelectedProjectId(id)
+    setCurrentPage('project')
   }
 
   if (!token || !user) {
@@ -73,30 +61,60 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <nav className="navbar">
+      <nav className="navbar" role="navigation" aria-label="Main navigation">
         <div className="nav-left">
-          <h1 className="logo">🎬 Yetrix Maritime AI</h1>
+          {/* Logo mark */}
+          <div className="logo-mark" aria-hidden="true">⚓</div>
+          <span className="logo">NAVIS AI</span>
         </div>
+
         <div className="nav-right">
-          <span className="user-email">{user.email}</span>
-          <button className="nav-button" onClick={() => setCurrentPage('assets')}>
-            Asset Library
+          <button
+            className={`nav-button${currentPage === 'dashboard' ? ' active' : ''}`}
+            onClick={() => setCurrentPage('dashboard')}
+          >
+            Projects
           </button>
-          <button className="nav-button logout-btn" onClick={handleLogout}>
-            Logout
+          <button
+            className={`nav-button${currentPage === 'assets' ? ' active' : ''}`}
+            onClick={() => setCurrentPage('assets')}
+          >
+            Assets
+          </button>
+
+          <span className="user-email" title={user.email}>
+            {user.full_name || user.email}
+          </span>
+
+          <button
+            className="nav-button logout-btn"
+            onClick={handleLogout}
+            aria-label="Log out"
+          >
+            Log out
           </button>
         </div>
       </nav>
 
-      <main className="main-content">
+      <main className="main-content" id="main">
         {currentPage === 'dashboard' && (
-          <Dashboard token={token} onSelectProject={handleSelectProject} />
+          <Dashboard
+            token={token}
+            onSelectProject={handleSelectProject}
+          />
         )}
-        {currentPage === 'project' && selectedProjectId && (
-          <ProjectDetail token={token} projectId={selectedProjectId} onBack={handleBackToDashboard} />
+        {currentPage === 'project' && selectedProjectId != null && (
+          <ProjectDetail
+            token={token}
+            projectId={selectedProjectId}
+            onBack={() => { setCurrentPage('dashboard'); setSelectedProjectId(null) }}
+          />
         )}
         {currentPage === 'assets' && (
-          <AssetLibrary token={token} onBack={() => setCurrentPage('dashboard')} />
+          <AssetLibrary
+            token={token}
+            onBack={() => setCurrentPage('dashboard')}
+          />
         )}
       </main>
     </div>

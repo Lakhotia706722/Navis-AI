@@ -8,21 +8,33 @@ interface LoginProps {
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
+
+  const switchTab = (register: boolean) => {
+    setIsRegistering(register)
+    setError('')
+    setSuccess('')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
     setLoading(true)
 
     try {
       const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login'
+      const body: Record<string, string> = { email, password }
+      if (isRegistering && fullName) body.full_name = fullName
+
       const response = await fetch(`http://localhost:8000${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       })
 
       const data = await response.json()
@@ -33,27 +45,74 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       if (isRegistering) {
+        setSuccess('Account created — log in to continue.')
         setIsRegistering(false)
         setEmail('')
         setPassword('')
-        setError('Registration successful! Please login.')
+        setFullName('')
       } else {
         onLogin(data.access_token)
       }
-    } catch (err) {
-      setError('Connection error. Make sure the backend is running on localhost:8000')
+    } catch {
+      setError('Cannot reach the server. Make sure the backend is running.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h1 className="login-title">🎬 Yetrix Maritime AI</h1>
-        <p className="login-subtitle">AI-powered maritime training videos</p>
+    <div className="login-page">
+      <div className="login-panel">
+        {/* Brand */}
+        <div className="login-brand">
+          <div className="login-brand__mark" aria-hidden="true">⚓</div>
+          <span className="login-brand__name">NAVIS AI</span>
+          <span className="login-brand__sub">Maritime training video platform</span>
+        </div>
 
-        <form onSubmit={handleSubmit}>
+        {/* Tab switcher */}
+        <div className="login-tabs" role="tablist">
+          <button
+            role="tab"
+            aria-selected={!isRegistering}
+            className={`login-tab${!isRegistering ? ' active' : ''}`}
+            onClick={() => switchTab(false)}
+            disabled={loading}
+          >
+            Log in
+          </button>
+          <button
+            role="tab"
+            aria-selected={isRegistering}
+            className={`login-tab${isRegistering ? ' active' : ''}`}
+            onClick={() => switchTab(true)}
+            disabled={loading}
+          >
+            Register
+          </button>
+        </div>
+
+        {/* Feedback */}
+        {success && <div className="login-success" role="status">{success}</div>}
+        {error   && <div className="error-message"  role="alert">{error}</div>}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} noValidate>
+          {isRegistering && (
+            <div className="input-group">
+              <label htmlFor="full-name">Full name</label>
+              <input
+                id="full-name"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Jane Blackwood"
+                disabled={loading}
+                autoComplete="name"
+              />
+            </div>
+          )}
+
           <div className="input-group">
             <label htmlFor="email">Email</label>
             <input
@@ -61,9 +120,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
+              placeholder="navigator@vessel.com"
               required
               disabled={loading}
+              autoComplete="email"
             />
           </div>
 
@@ -77,35 +137,22 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               placeholder="••••••••"
               required
               disabled={loading}
+              autoComplete={isRegistering ? 'new-password' : 'current-password'}
             />
           </div>
 
-          {error && <div className="error-message">{error}</div>}
-
-          <button type="submit" className="button login-button" disabled={loading}>
-            {loading ? 'Please wait...' : isRegistering ? 'Create Account' : 'Login'}
+          <button type="submit" className="button login-submit" disabled={loading}>
+            {loading ? 'One moment…' : isRegistering ? 'Create account' : 'Log in'}
           </button>
         </form>
 
-        <p className="toggle-mode">
-          {isRegistering ? 'Already have an account?' : "Don't have an account?"}
-          <button
-            type="button"
-            className="toggle-button"
-            onClick={() => {
-              setIsRegistering(!isRegistering)
-              setError('')
-            }}
-            disabled={loading}
-          >
-            {isRegistering ? 'Login' : 'Register'}
-          </button>
-        </p>
-
-        <div className="demo-info">
-          <p>Demo credentials:</p>
-          <code>demo@example.com / password123</code>
-        </div>
+        {/* Demo info */}
+        {!isRegistering && (
+          <div className="login-demo" aria-label="Demo credentials">
+            <span className="login-demo__label">Demo credentials</span>
+            <code className="login-demo__creds">demo@example.com / password123</code>
+          </div>
+        )}
       </div>
     </div>
   )
